@@ -86,15 +86,17 @@ export function makeGenes(speciesId: SpeciesId, seed: number): Genes {
     height: rng.range(0.85, 1.25) * (dwarf ? 0.6 : 1),
     thickness: rng.range(0.75, 1.15),
     caudex: rng.chance(0.08) ? rng.range(1.35, 1.6) : rng.range(0.55, 1.0),
-    curvature: rng.range(0.04, 0.18),
+    curvature: rng.range(0.03, 0.1),
     lean: rng.chance(0.1) ? rng.range(0.3, 0.45) : rng.range(0, 0.15),
     leanAngle: rng.range(0, Math.PI * 2),
-    branchProb: rng.range(0.45, 0.7),
+    branchProb: rng.range(0.32, 0.5),
     branchAngle: rng.range(0.7, 1.05),
-    internode: 0.058,
-    zigzag: superZig ? rng.range(0.72, 0.85) : rng.range(0.32, 0.58),
-    twist: rng.chance(0.1) ? rng.range(0.2, 0.35) : rng.range(0, 0.1),
-    leafDensity: rng.range(0.7, 1.15),
+    internode: 0.078,
+    // 節ごとに左右へ大きく折れる（実物は節で直角近くまで曲がる）
+    zigzag: superZig ? rng.range(0.95, 1.1) : rng.range(0.62, 0.85),
+    // ねじれが強いと折れる面が回ってジグザグがぼやけるので控えめに
+    twist: rng.chance(0.1) ? rng.range(0.12, 0.2) : rng.range(0, 0.03),
+    leafDensity: rng.range(0.4, 0.65),
     leafSize: rng.range(0.85, 1.2),
     flowerAmount: 0,
     flowerHue: fl.h,
@@ -114,6 +116,7 @@ export function makeGenes(speciesId: SpeciesId, seed: number): Genes {
 /* ------------------------------------------------------------------ */
 
 interface SpeciesRule {
+  pipeExp: number; // パイプモデルの指数（大きいほど親枝が細くなる）
   maxDepth: number;
   maxBranches: number;
   upTend: number[]; // depth ごとの上向き傾向
@@ -127,6 +130,7 @@ interface SpeciesRule {
 
 const RULES: Record<SpeciesId, SpeciesRule> = {
   adenium: {
+    pipeExp: 2,
     maxDepth: 3,
     maxBranches: 70,
     upTend: [0.16, 0.13, 0.1, 0.08],
@@ -138,14 +142,15 @@ const RULES: Record<SpeciesId, SpeciesRule> = {
     floor: 0.12,
   },
   decaryia: {
-    maxDepth: 4,
-    maxBranches: 220,
-    upTend: [0.12, 0.05, 0.035, 0.03, 0.03],
+    pipeExp: 2.8,
+    maxDepth: 3,
+    maxBranches: 140,
+    upTend: [0.1, 0.02, 0.015, 0.015, 0.015],
     rTip: 0.0075,
     taper: 0.022,
-    trunkSwell: 0.35,
-    minBranchFrac: 0.3,
-    childLen: [0.45, 0.75],
+    trunkSwell: 0.25,
+    minBranchFrac: 0.15,
+    childLen: [0.6, 0.95],
     floor: 0.1,
   },
 };
@@ -231,7 +236,7 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
     const outward = g.heads > 1 ? norm(off) : [0, 0, 0];
     let dir = norm(add(add(UP, scale(outward as V3, 0.38)), scale(leanDir, g.lean * 0.9)));
     dir = norm(add(dir, [rng.gauss() * 0.08, 0, rng.gauss() * 0.08]));
-    const lenBase = isAd ? 0.66 : 1.3;
+    const lenBase = isAd ? 0.66 : 1.45;
     queue.push({
       start: add(top, add(off, [0, -0.03, 0])),
       dir: projectFan(dir, 0.6),
@@ -342,10 +347,11 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
     if (b.root) continue;
     let r = rTip;
     for (let k = b.nodes.length - 1; k >= 0; k--) {
-      let sum = r * r;
+      const e = rule.pipeExp;
+      let sum = r ** e;
       const ch = childrenAt[bi].get(k);
-      if (ch) for (const c of ch) sum += branches[c].nodes[0].r ** 2;
-      r = Math.sqrt(sum) * (1 + rule.taper);
+      if (ch) for (const c of ch) sum += branches[c].nodes[0].r ** e;
+      r = sum ** (1 / e) * (1 + rule.taper);
       b.nodes[k].r = r;
     }
     if (b.depth === 0) {
@@ -440,7 +446,7 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
               t: 0,
               dir,
               side: norm(cross(dir, T)),
-              size: 0.042 * g.leafSize * rng.range(0.75, 1.15),
+              size: 0.036 * g.leafSize * rng.range(0.75, 1.15),
               variegated: g.variegated && rng.chance(0.65),
               shed,
             });

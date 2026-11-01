@@ -242,7 +242,8 @@ export class PlantModel extends THREE.Group {
         const a = b.nodes[k - 1].p;
         const c = b.nodes[k + 1].p;
         const seg = (dist3(a, nd.p) + dist3(c, nd.p)) / 2;
-        const w = clamp(nd.r / Math.max(1e-4, seg)) * 0.7;
+        // 太い幹のカクつきだけを抑える（デカリアの枝のジグザグは残す）
+        const w = clamp(nd.r / Math.max(1e-4, seg) - (isAd ? 0 : 0.35)) * (isAd ? 0.7 : 0.5);
         const mid: V3 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2];
         return lerp(nd.p, mid, w);
       });

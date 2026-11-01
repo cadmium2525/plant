@@ -45,7 +45,7 @@ export function evaluateTraits(
     if (g.flowerSat < 0.1) add('white', '白花', 1);
   } else {
     if (g.heads >= 2) add('multi', '株立ち', 2);
-    if (g.zigzag >= 0.7) add('zig', '超ジグザグ', 3);
+    if (g.zigzag >= 0.92) add('zig', '超ジグザグ', 3);
     if (g.caudex >= 1.3) add('mega', '塊根化', 3);
   }
   if (g.dwarf) add('dwarf', '矮性', 2);
@@ -54,8 +54,8 @@ export function evaluateTraits(
   if (asym > 0.35) add('asym', '片流れ', 1);
   if (sk.events.length >= 2) add('drama', '劇的成長', 1);
 
-  const tipsHigh = isAd ? 26 : 200;
-  const tipsLow = isAd ? 4 : 40;
+  const tipsHigh = isAd ? 26 : 110;
+  const tipsLow = isAd ? 4 : 18;
   if (tips >= tipsHigh) add('dense', '枝密', 1);
   // 可愛らしい失敗形（スコア 0 だが記録する）
   if (tips <= tipsLow) add('minimal', 'ミニマル', 0);
