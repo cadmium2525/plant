@@ -88,6 +88,12 @@ export async function studioScreen(r: Route): Promise<Screen> {
     if (img) dctx.drawImage(img, 0, 0);
   }
   let doodleChanged = false;
+  // ラクガキの取り消し履歴（ペン・消しゴム・ステッカー・全消去を1手ずつ戻せる）
+  const undoStack: { img: ImageData; stickers: PotDeco['stickers'] }[] = [];
+  const pushUndo = () => {
+    undoStack.push({ img: dctx.getImageData(0, 0, TEX_W, TEX_H), stickers: [...deco.stickers] });
+    if (undoStack.length > 30) undoStack.shift();
+  };
   const commitDoodle = () => {
     if (!doodleChanged) return;
     doodleChanged = false;
@@ -222,6 +228,7 @@ export async function studioScreen(r: Route): Promise<Screen> {
     disp.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       const p = pt(e);
+      pushUndo();
       if (sticker) {
         deco.stickers.push({ e: sticker, x: p[0] / TEX_W, y: p[1] / TEX_H, s: 0.32 });
         pot.setDeco(deco);
@@ -326,6 +333,7 @@ export async function studioScreen(r: Route): Promise<Screen> {
           {
             class: 'btn ghost',
             onclick: () => {
+              pushUndo();
               dctx.clearRect(0, 0, TEX_W, TEX_H);
               deco.stickers = [];
               doodleChanged = true;
@@ -341,7 +349,14 @@ export async function studioScreen(r: Route): Promise<Screen> {
           {
             class: 'btn ghost',
             onclick: () => {
-              deco.stickers.pop();
+              const prev = undoStack.pop();
+              if (!prev) {
+                toast('これ以上戻せません');
+                return;
+              }
+              dctx.putImageData(prev.img, 0, 0);
+              deco.stickers = prev.stickers;
+              doodleChanged = true;
               pot.setDeco(deco);
               touch();
               live();

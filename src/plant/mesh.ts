@@ -283,7 +283,7 @@ export class PlantModel extends THREE.Group {
           for (let j = 0; j < S; j++) {
             const a = bc.offset + k * (S + 1) + j;
             const b2 = a + S + 1;
-            index.push(a, b2, a + 1, b2, b2 + 1, a + 1);
+            index.push(a, a + 1, b2, b2, a + 1, b2 + 1);
           }
       });
     }
