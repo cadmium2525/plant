@@ -510,6 +510,9 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
         d = norm(add(d, [rng.gauss() * 0.25, -0.05, rng.gauss() * 0.25]));
         p = add(p, scale(d, cRadius * rng.range(0.22, 0.32)));
         if (p[1] < -0.035) p[1] = -0.035;
+        // 鉢の内径（塊根の1.3倍以上）からはみ出さないように
+        const hr = Math.hypot(p[0], p[2]);
+        if (hr > cRadius * 1.15) p = [(p[0] * cRadius * 1.15) / hr, p[1], (p[2] * cRadius * 1.15) / hr];
       }
       branches.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true });
     }
@@ -731,6 +734,12 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
         nd.r *= sm;
       });
     }
+  }
+
+  // 塊根の上から出る幹は、塊根の首より太くしない（太すぎると曲がり目で筒が潰れて板状に見える）
+  if (!rule.fitCaudex && caudex.shape !== 'dome') {
+    const cap = Math.max(cRadius * caudex.neck * 1.1, rule.rTip * 2.2);
+    for (const b of branches) if (!b.root) for (const nd of b.nodes) nd.r = Math.min(nd.r, cap);
   }
 
   // 根元のふくらみを幹の太さに合わせる

@@ -126,6 +126,48 @@ function tortoiseTexture(): THREE.Texture {
   return t;
 }
 
+/** 葉の模様（主脈・側脈・縁の濃淡）。色は個体ごとのインスタンスカラーで乗算 */
+function leafTexture(): THREE.Texture {
+  const hit = texCache.get('leaf');
+  if (hit) return hit;
+  const W = 128;
+  const H = 256;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#a9a9a9');
+  grad.addColorStop(0.18, '#e0e0e0');
+  grad.addColorStop(0.5, '#ffffff');
+  grad.addColorStop(0.82, '#e0e0e0');
+  grad.addColorStop(1, '#a9a9a9');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, W, H);
+  // 側脈
+  g.strokeStyle = 'rgba(255,255,240,0.55)';
+  g.lineWidth = 1.5;
+  for (let y = 30; y < H - 10; y += 22) {
+    for (const sgn of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(W / 2, y);
+      g.quadraticCurveTo(W / 2 + sgn * W * 0.22, y + 6, W / 2 + sgn * W * 0.45, y + 26);
+      g.stroke();
+    }
+  }
+  // 主脈
+  g.strokeStyle = 'rgba(255,255,230,0.85)';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(W / 2, 0);
+  g.lineTo(W / 2, H);
+  g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  texCache.set('leaf', t);
+  return t;
+}
+
 function flowerTexture(h: number, s: number, l: number, pattern: string): THREE.Texture {
   const key = `fl-${h.toFixed(3)}-${s}-${l}-${pattern}`;
   const hit = texCache.get(key);
@@ -253,11 +295,89 @@ const hsl = (a: [number, number, number], dh = 0) => new THREE.Color().setHSL(a[
 /* 植物モデル                                                           */
 /* ------------------------------------------------------------------ */
 
+interface Ring {
+  p: V3; // 中心
+  r: number; // 最終半径
+  t: number; // 出現時刻
+  n: V3; // 断面の基準方向
+  bi: V3;
+}
+
 interface BranchCache {
   b: SkBranch;
   offset: number; // 頂点 offset
-  frames: { n: V3; bi: V3 }[];
-  pos: V3[]; // 描画用に平滑化したノード位置（太い部分のカクつきを抑える）
+  rings: Ring[]; // 描画用の輪（節の間を曲線で補間し、先端に丸いフタ）
+  pos: V3[]; // 描画用に平滑化したノード位置（葉・花・トゲの付け根）
+}
+
+/** Catmull-Rom 補間 */
+function catmull(p0: V3, p1: V3, p2: V3, p3: V3, f: number): V3 {
+  const f2 = f * f;
+  const f3 = f2 * f;
+  const o: V3 = [0, 0, 0];
+  for (let i = 0; i < 3; i++)
+    o[i] = 0.5 * (2 * p1[i] + (-p0[i] + p2[i]) * f + (2 * p0[i] - 5 * p1[i] + 4 * p2[i] - p3[i]) * f2 + (-p0[i] + 3 * p1[i] - 3 * p2[i] + p3[i]) * f3);
+  return o;
+}
+
+/**
+ * 枝の中心線から描画用の輪を作る。
+ * 太い部分は中心線を何度かならし（曲がり目で筒が潰れて板状になるのを防ぐ）、
+ * 節の間を補間して滑らかにし、先端には丸いフタを付ける。
+ */
+function buildRings(b: SkBranch, smooth: [number, number], quality: 'low' | 'mid' | 'high'): { rings: Ring[]; pos: V3[] } {
+  const N = b.nodes.length;
+  let P: V3[] = b.nodes.map((nd) => nd.p);
+  for (let it = 0; it < 4; it++) {
+    P = P.map((p, k) => {
+      if (k === 0 || k === N - 1) return p;
+      const a = P[k - 1];
+      const c = P[k + 1];
+      const seg = (dist3(a, p) + dist3(c, p)) / 2;
+      const w = Math.min(0.5, clamp(b.nodes[k].r / Math.max(1e-4, seg) - smooth[0]) * smooth[1]);
+      return lerp(p, [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2], w);
+    });
+  }
+  const maxR = Math.max(...b.nodes.map((n) => n.r));
+  let sub = maxR > 0.04 ? 4 : maxR > 0.014 ? 3 : 1;
+  if (quality === 'low') sub = Math.max(1, sub - 2);
+  const rings: Ring[] = [];
+  const push = (p: V3, r: number, t: number) => rings.push({ p, r, t, n: [0, 0, 0], bi: [0, 0, 0] });
+  for (let k = 0; k < N; k++) {
+    const nd = b.nodes[k];
+    if (k === N - 1) {
+      push(P[k], nd.r, nd.t);
+      break;
+    }
+    const nx = b.nodes[k + 1];
+    for (let s = 0; s < sub; s++) {
+      const f = s / sub;
+      const p = s === 0 ? P[k] : catmull(P[Math.max(0, k - 1)], P[k], P[k + 1], P[Math.min(N - 1, k + 2)], f);
+      push(p, nd.r + (nx.r - nd.r) * f, nd.t + (nx.t - nd.t) * f);
+    }
+  }
+  // 先端の丸いフタ（切り口が見えないように）
+  if (!b.root) {
+    const last = rings[rings.length - 1];
+    const prev = rings[rings.length - 2];
+    const T = norm(sub3(last.p, prev.p));
+    const r = last.r;
+    push(add3(last.p, T, r * 0.45), r * 0.72, last.t);
+    push(add3(last.p, T, r * 0.85), 0, last.t);
+  }
+  // 断面の向き（回転を最小にする平行移動フレーム）
+  let n = perpendicular(norm(sub3(rings[1].p, rings[0].p)));
+  for (let k = 0; k < rings.length; k++) {
+    const a = rings[Math.max(0, k - 1)].p;
+    const c = rings[Math.min(rings.length - 1, k + 1)].p;
+    const T = norm(sub3(c, a));
+    const proj = cross(cross(T, n), T);
+    // 急な折れ曲がりで投影が潰れたら作り直す
+    n = Math.hypot(proj[0], proj[1], proj[2]) < 0.2 ? perpendicular(T) : norm(proj);
+    rings[k].n = n;
+    rings[k].bi = norm(cross(T, n));
+  }
+  return { rings, pos: P };
 }
 
 export class PlantModel extends THREE.Group {
@@ -299,28 +419,9 @@ export class PlantModel extends THREE.Group {
     const S = this.sides;
     let vcount = 0;
     for (const b of sk.branches) {
-      const frames: { n: V3; bi: V3 }[] = [];
-      const pos = b.nodes.map((nd, k) => {
-        if (k === 0 || k === b.nodes.length - 1) return nd.p;
-        const a = b.nodes[k - 1].p;
-        const c = b.nodes[k + 1].p;
-        const seg = (dist3(a, nd.p) + dist3(c, nd.p)) / 2;
-        // 太い幹のカクつきだけを抑える（デカリアの枝のジグザグは残す）
-        const w = clamp(nd.r / Math.max(1e-4, seg) - look.smooth[0]) * look.smooth[1];
-        const mid: V3 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2];
-        return lerp(nd.p, mid, w);
-      });
-      let n = perpendicular(norm(sub3(b.nodes[1].p, b.nodes[0].p)));
-      for (let k = 0; k < b.nodes.length; k++) {
-        const a = pos[Math.max(0, k - 1)];
-        const c = pos[Math.min(b.nodes.length - 1, k + 1)];
-        const T = norm(sub3(c, a));
-        // 平行移動フレーム
-        n = norm(cross(cross(T, n), T));
-        frames.push({ n, bi: norm(cross(T, n)) });
-      }
-      this.branchCaches.push({ b, offset: vcount, frames, pos });
-      vcount += b.nodes.length * (S + 1);
+      const { rings, pos } = buildRings(b, look.smooth, quality);
+      this.branchCaches.push({ b, offset: vcount, rings, pos });
+      vcount += rings.length * (S + 1);
     }
     const positions = new Float32Array(vcount * 3);
     const normals = new Float32Array(vcount * 3);
@@ -329,21 +430,20 @@ export class PlantModel extends THREE.Group {
     const index: number[] = [];
     for (const bc of this.branchCaches) {
       let along = 0;
-      bc.b.nodes.forEach((nd, k) => {
-        if (k > 0) along += dist3(nd.p, bc.b.nodes[k - 1].p);
-        const f = bc.frames[k];
+      bc.rings.forEach((rg, k) => {
+        if (k > 0) along += dist3(rg.p, bc.rings[k - 1].p);
         for (let j = 0; j <= S; j++) {
           const th = (j / S) * Math.PI * 2;
           const c = Math.cos(th);
           const s = Math.sin(th);
           const vi = bc.offset + k * (S + 1) + j;
-          normals[vi * 3] = f.n[0] * c + f.bi[0] * s;
-          normals[vi * 3 + 1] = f.n[1] * c + f.bi[1] * s;
-          normals[vi * 3 + 2] = f.n[2] * c + f.bi[2] * s;
+          normals[vi * 3] = rg.n[0] * c + rg.bi[0] * s;
+          normals[vi * 3 + 1] = rg.n[1] * c + rg.bi[1] * s;
+          normals[vi * 3 + 2] = rg.n[2] * c + rg.bi[2] * s;
           uvs[vi * 2] = j / S;
-          uvs[vi * 2 + 1] = (along * look.uvScale) / Math.max(0.3, nd.r * 12);
+          uvs[vi * 2 + 1] = (along * look.uvScale) / Math.max(0.3, rg.r * 12);
         }
-        if (k < bc.b.nodes.length - 1)
+        if (k < bc.rings.length - 1)
           for (let j = 0; j < S; j++) {
             const a = bc.offset + k * (S + 1) + j;
             const b2 = a + S + 1;
@@ -360,9 +460,12 @@ export class PlantModel extends THREE.Group {
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setIndex(index);
     this.branchGeo = geo;
+    const barkTex = barkTexture(look.bark);
     const barkMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      map: barkTexture(look.bark),
+      map: barkTex,
+      bumpMap: barkTex,
+      bumpScale: look.bark === 'rough' ? 1.2 : 0.5,
       roughness: look.barkRough,
       metalness: 0,
     });
@@ -378,6 +481,7 @@ export class PlantModel extends THREE.Group {
       const lg = leafGeometry(look.leaf);
       const lm = new THREE.MeshStandardMaterial({
         color: 0xffffff,
+        map: leafTexture(),
         roughness: look.leafRough,
         side: THREE.DoubleSide,
       });
@@ -488,6 +592,8 @@ export class PlantModel extends THREE.Group {
       map: tex,
       vertexColors: true,
       roughness: texKind === 'tortoise' ? 0.95 : def.look.barkRough - 0.07,
+      bumpMap: tex,
+      bumpScale: texKind === 'rough' ? 1.2 : 0.5,
     });
     if (texKind === 'tortoise') {
       // 溝の深さは個体の遺伝子で変わる
@@ -513,42 +619,44 @@ export class PlantModel extends THREE.Group {
     const tipR = this.tipR;
 
     for (const bc of this.branchCaches) {
-      const nodes = bc.b.nodes;
-      const P0 = bc.pos;
+      const rings = bc.rings;
+      const R = rings.length;
       // 成長点を探す
-      let tip: V3 = P0[0];
-      const visible = t >= nodes[0].t;
+      let tip: V3 = rings[0].p;
+      const visible = t >= rings[0].t;
       let grownK = -1;
-      for (let k = 0; k < nodes.length; k++) {
-        if (t >= nodes[k].t) {
+      for (let k = 0; k < R; k++) {
+        if (t >= rings[k].t) {
           grownK = k;
-          tip = P0[k];
+          tip = rings[k].p;
         } else {
           if (k > 0) {
-            const f = (t - nodes[k - 1].t) / Math.max(1e-6, nodes[k].t - nodes[k - 1].t);
-            tip = lerp(P0[k - 1], P0[k], clamp(f));
+            const f = (t - rings[k - 1].t) / Math.max(1e-6, rings[k].t - rings[k - 1].t);
+            tip = lerp(rings[k - 1].p, rings[k].p, clamp(f));
           }
           break;
         }
       }
-      for (let k = 0; k < nodes.length; k++) {
-        const nd = nodes[k];
+      const growing = grownK < R - 1;
+      for (let k = 0; k < R; k++) {
+        const rg = rings[k];
         let p: V3;
         let r: number;
         let age = 0;
         if (!visible) {
-          p = P0[0];
+          p = rings[0].p;
           r = 0;
         } else if (k <= grownK) {
-          p = P0[k];
-          age = t - nd.t;
-          const thick = 0.25 + 0.75 * easeOut(age / Math.max(0.12, 1 - nd.t));
-          const young = k >= grownK - 1 && grownK < nodes.length - 1 ? tipR : 0;
-          r = Math.min(nd.r, Math.max(nd.r * thick, young));
-          if (bc.b.root) r = nd.r * easeOut(age / 0.3);
+          p = rg.p;
+          age = t - rg.t;
+          const thick = 0.25 + 0.75 * easeOut(age / Math.max(0.12, 1 - rg.t));
+          // 伸びている途中の先端付近は細い若枝の太さを保つ
+          const young = growing && k >= grownK - 3 ? tipR * (1 - (grownK - k) * 0.2) : 0;
+          r = Math.min(rg.r, Math.max(rg.r * thick, young));
+          if (bc.b.root) r = rg.r * easeOut(age / 0.3);
         } else if (k === grownK + 1) {
           p = tip;
-          r = Math.min(nd.r, tipR * 0.6);
+          r = Math.min(rg.r, tipR * 0.6);
         } else {
           p = tip;
           r = 0;
@@ -639,6 +747,16 @@ export class PlantModel extends THREE.Group {
     return h;
   }
 
+  /** 影を落とす・受ける */
+  setShadows(on: boolean): void {
+    this.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) {
+        o.castShadow = on;
+        o.receiveShadow = on;
+      }
+    });
+  }
+
   dispose(): void {
     this.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -661,6 +779,9 @@ function sub3(a: V3, b: V3): V3 {
 }
 function dist3(a: V3, b: V3): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+function add3(a: V3, d: V3, k: number): V3 {
+  return [a[0] + d[0] * k, a[1] + d[1] * k, a[2] + d[2] * k];
 }
 function lerp(a: V3, b: V3, t: number): V3 {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];

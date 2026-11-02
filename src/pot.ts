@@ -102,11 +102,31 @@ export function drawPotTexture(ctx: CanvasRenderingContext2D, deco: PotDeco, doo
   // 素焼きっぽいムラ
   let s = 11;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 260; i++) {
-    ctx.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+  // 大きな色ムラはごく淡く、ぼかしたグラデーションで
+  for (let i = 0; i < 14; i++) {
+    const x = r() * w;
+    const y = r() * h;
+    const rad = 40 + r() * 90;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    const c = r() < 0.5 ? '255,255,255' : '0,0,0';
+    g.addColorStop(0, `rgba(${c},0.05)`);
+    g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  // 細かい土の粒
+  for (let i = 0; i < 9000; i++) {
+    ctx.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    ctx.fillRect(r() * w, r() * h, 1 + r() * 1.5, 1 + r() * 1.5);
+  }
+  // 轆轤（ろくろ）目
+  ctx.strokeStyle = 'rgba(0,0,0,0.035)';
+  ctx.lineWidth = 2;
+  for (let y = 8; y < h; y += 14 + r() * 10) {
     ctx.beginPath();
-    ctx.arc(r() * w, r() * h, 2 + r() * 10, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y + (r() - 0.5) * 3);
+    ctx.stroke();
   }
   ctx.fillStyle = deco.patternColor;
   ctx.strokeStyle = deco.patternColor;

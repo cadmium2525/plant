@@ -54,6 +54,7 @@ export class Stage {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.45;
@@ -61,6 +62,13 @@ export class Stage {
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a66, 0.9);
     this.key = new THREE.DirectionalLight(0xffffff, 2.2);
     this.key.position.set(2, 4, 3);
+    // 植物自身の影（枝の影が塊根や用土に落ちる）
+    this.key.castShadow = true;
+    this.key.shadow.mapSize.set(1024, 1024);
+    this.key.shadow.bias = -0.0004;
+    this.key.shadow.normalBias = 0.02;
+    this.key.shadow.radius = 3;
+    this.scene.add(this.key.target);
     this.rim = new THREE.DirectionalLight(0xbfd8ff, 0.9);
     this.rim.position.set(-3, 2, -2.5);
     this.scene.add(this.hemi, this.key, this.rim, this.root);
@@ -96,6 +104,16 @@ export class Stage {
     this.quality = q;
     const cap = q === 'high' ? 2 : q === 'mid' ? 1.5 : 1;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
+    // 軽量モードでは影を切る
+    const shadows = q !== 'low';
+    if (this.renderer.shadowMap.enabled !== shadows) {
+      this.renderer.shadowMap.enabled = shadows;
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (m) m.needsUpdate = true;
+      });
+    }
+    this.applyShadows();
     this.resize();
   }
 
@@ -159,6 +177,7 @@ export class Stage {
     this.plant = plant;
     this.pot = pot;
     this.root.add(pot, plant);
+    this.applyShadows();
     // 鉢の拡大に合わせて植物も配置
     this.layout();
     this.frame();
@@ -173,6 +192,31 @@ export class Stage {
     this.shadow.position.y = -potH - 0.002;
     const s = this.pot.innerR * 3.2;
     this.shadow.scale.set(s, s, 1);
+    // 影のカメラを植物と鉢の範囲に合わせる
+    const sk = this.plant.specimen.skeleton;
+    const ext = Math.max(sk.height, sk.width, this.pot.innerR, potH) * 1.3;
+    const cam = this.key.shadow.camera;
+    cam.left = cam.bottom = -ext;
+    cam.right = cam.top = ext;
+    cam.near = 0.1;
+    cam.far = ext * 6;
+    cam.updateProjectionMatrix();
+    const midY = (sk.height - potH) / 2;
+    this.key.target.position.set(0, midY, 0);
+    const dir = this.key.position.clone().sub(this.key.target.position).normalize();
+    this.key.position.copy(this.key.target.position).addScaledVector(dir, ext * 3);
+    this.invalidate();
+  }
+
+  private applyShadows(): void {
+    const on = this.renderer.shadowMap.enabled;
+    this.plant?.setShadows(on);
+    this.pot?.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) {
+        o.castShadow = on;
+        o.receiveShadow = on;
+      }
+    });
     this.invalidate();
   }
 
@@ -225,7 +269,10 @@ export class Stage {
     if (p === 'warm') set(0xffe2c0, 0x6a5040, 0.7, 0xffb070, 2.6, 0x8fb0ff, 0.7, 1.0);
     if (p === 'night') set(0x7088c0, 0x202030, 0.45, 0xa8c0ff, 1.2, 0xff9ad0, 1.6, 1.0);
     if (p === 'studio') set(0xffffff, 0x444444, 0.4, 0xffffff, 3.2, 0xffffff, 2.2, 1.0);
-    this.key.position.set(p === 'warm' ? 3.5 : 2, p === 'warm' ? 2 : 4, 3);
+    // 向きだけ変えて、影のカメラとの距離は保つ
+    const d = this.key.position.distanceTo(this.key.target.position) || 5;
+    const dir = new THREE.Vector3(p === 'warm' ? 3.5 : 2, p === 'warm' ? 2 : 4, 3).normalize();
+    this.key.position.copy(this.key.target.position).addScaledVector(dir, d);
     this.invalidate();
   }
 
