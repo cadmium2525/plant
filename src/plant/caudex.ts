@@ -27,13 +27,13 @@ export function caudexLobe(c: SkCaudex, th: number, h: number): number {
 }
 
 export function caudexY(c: SkCaudex, h: number): number {
-  return -0.05 + h * (c.height + 0.05);
+  return (c.baseY ?? 0) - 0.05 + h * (c.height + 0.05);
 }
 
 /** 塊根表面の点（最終形） */
 export function caudexPoint(c: SkCaudex, h: number, th: number): V3 {
   const y = caudexY(c, h);
   const r = c.radius * caudexShape(c, h) * caudexLobe(c, th, h);
-  const lean = Math.pow(clamp(y / c.height), 1.5);
+  const lean = Math.pow(clamp((y - (c.baseY ?? 0)) / c.height), 1.5);
   return [c.leanX * lean + Math.cos(th) * r, y, c.leanZ * lean + Math.sin(th) * r];
 }

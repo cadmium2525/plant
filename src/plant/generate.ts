@@ -30,7 +30,7 @@ const FLOWER_PALETTE: { h: number; s: number; l: number; w: number }[] = [
 ];
 
 /** 既存2種では使わない遺伝子（乱数を消費しないよう固定値） */
-const EXTRA_OFF = { knob: 0, helix: 0, crack: 0, caudexSpines: 0, fork: 0, arch: false, rootLegs: 0, aerial: 0 };
+const EXTRA_OFF = { knob: 0, helix: 0, crack: 0, caudexSpines: 0, fork: 0, arch: false, rootLegs: 0, aerial: 0, legs: false };
 
 function weighted<T extends { w: number }>(rng: Rng, items: T[]): T {
   const total = items.reduce((s, i) => s + i.w, 0);
@@ -145,6 +145,7 @@ function makeNewGenes(
     arch: false,
     rootLegs: 0,
     aerial: 0,
+    legs: false,
     variegated,
     dwarf,
   };
@@ -193,6 +194,8 @@ function makeNewGenes(
         rootLegs: octopus ? rng.int(9, 12) : rng.int(4, 7),
         aerial: forest ? rng.int(10, 16) : rng.int(0, 4),
         fasciation: rare.fasciation,
+        // 根元が二本の脚になって足を組む、話題の「セクシーなガジュマル」
+        legs: rng.chance(0.05),
       };
     }
     case 'operculicarya': {
@@ -508,6 +511,22 @@ function makeCaudex(speciesId: SpeciesId, g: Genes, rng: Rng, leanDir: V3): SkCa
       wrinkle: 0.01,
     };
   }
+  if (speciesId === 'gajumaru' && g.legs) {
+    // 足組み: 根元が持ち上がって「腰」になる（左右に張り出した二つのふくらみ）
+    const a = legYaw(g);
+    const L = legLength(g);
+    return {
+      height: 0.17 * g.thickness,
+      radius: 0.078 * g.thickness,
+      neck: 0.82,
+      bulge: 0.04,
+      lobes: [{ k: 2, amp: 0.24, phase: Math.PI / 2 - 2 * a }],
+      leanX: 0,
+      leanZ: 0,
+      wrinkle: 0.02,
+      baseY: L,
+    };
+  }
   if (speciesId === 'gajumaru') {
     // 人参形にふくらんだ根元（ゴツゴツしたこぶが多い）
     const radius = 0.17 * g.caudex * Math.sqrt(g.thickness);
@@ -538,6 +557,78 @@ function makeCaudex(speciesId: SpeciesId, g: Genes, rng: Rng, leanDir: V3): SkCa
   };
 }
 
+/** 足組みガジュマル: 脚の向き（正面寄りになるよう ±0.6rad） */
+function legYaw(g: Genes): number {
+  return (g.leanAngle % 1.2) - 0.6;
+}
+function legLength(g: Genes): number {
+  return 0.62 * g.height;
+}
+
+/** 脚の太さ（u: 0=腰, 1=つま先） 太もも→ひざ→ふくらはぎ→足首→足 */
+function legRadius(u: number): number {
+  const keys: [number, number][] = [
+    [0, 0.066],
+    [0.3, 0.053],
+    [0.5, 0.035],
+    [0.64, 0.042],
+    [0.86, 0.019],
+    [0.94, 0.023],
+    [1, 0.012],
+  ];
+  for (let i = 1; i < keys.length; i++)
+    if (u <= keys[i][0]) {
+      const [u0, r0] = keys[i - 1];
+      const [u1, r1] = keys[i];
+      const f = (u - u0) / (u1 - u0);
+      return r0 + (r1 - r0) * (f * f * (3 - 2 * f));
+    }
+  return keys[keys.length - 1][1];
+}
+
+/** 片脚を組んだ二本の脚（根）を作る。つま先から腰へ向かって伸びる */
+function makeLegs(g: Genes, rng: Rng): SkBranch[] {
+  const a = legYaw(g);
+  const L = legLength(g);
+  const k = L / 0.5;
+  const s = rng.chance(0.5) ? 1 : -1; // どちらの脚を上に組むか
+  const ax: V3 = [Math.cos(a), 0, Math.sin(a)];
+  const az: V3 = [-Math.sin(a), 0, Math.cos(a)];
+  const W = (x: number, y: number, z: number): V3 => add(scale(ax, x * s * k), add([0, y, 0], scale(az, z * k)));
+  // 腰 → 太もも → ひざ → すね → 足首 → つま先（ひざ同士が前後にずれて交差する）
+  const crossing: V3[] = [W(-0.05, L, 0), W(-0.03, L * 0.78, 0.04), W(0.03, L * 0.5, 0.078), W(0.06, L * 0.27, 0.062), W(0.08, 0.05, 0.04), W(0.115, -0.02, 0.1)];
+  const standing: V3[] = [W(0.05, L, -0.01), W(0.045, L * 0.75, -0.012), W(0.0, L * 0.5, -0.022), W(-0.03, L * 0.27, -0.012), W(-0.06, 0.05, 0), W(-0.085, -0.02, 0.07)];
+  const thick = g.thickness * Math.sqrt(k);
+  const out: SkBranch[] = [];
+  for (const pts of [standing, crossing]) {
+    const N = 18;
+    const nodes = [];
+    for (let i = N; i >= 0; i--) {
+      // i: 0=腰 … N=つま先。ノードはつま先から並べる（土から腰へ伸びる）
+      const u = i / N;
+      const f = u * (pts.length - 1);
+      const seg = Math.min(pts.length - 2, Math.floor(f));
+      const lf = f - seg;
+      const P = (j: number) => pts[Math.max(0, Math.min(pts.length - 1, j))];
+      const p0 = P(seg - 1);
+      const p1 = P(seg);
+      const p2 = P(seg + 1);
+      const p3 = P(seg + 2);
+      const p: V3 = [0, 0, 0];
+      for (let c = 0; c < 3; c++)
+        p[c] =
+          0.5 *
+          (2 * p1[c] +
+            (-p0[c] + p2[c]) * lf +
+            (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * lf * lf +
+            (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * lf * lf * lf);
+      nodes.push({ p, t: 0.03 + (1 - u) * 0.16, r: legRadius(u) * thick });
+    }
+    out.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true });
+  }
+  return out;
+}
+
 export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): Skeleton {
   const rng = new Rng(seed).fork(2);
   const rule = RULES[speciesId];
@@ -553,7 +644,7 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
   const cRadius = caudex.radius;
   const cHeight = caudex.height;
   const topY = caudex.shape === 'dome' ? cHeight * 1.0 : caudex.shape === 'ball' ? cHeight * 0.97 : cHeight * 0.93;
-  const top: V3 = [caudex.leanX, topY, caudex.leanZ];
+  const top: V3 = [caudex.leanX, topY + (caudex.baseY ?? 0), caudex.leanZ];
 
   /* --- 露出根（アデニウム） --- */
   if (isAd) {
@@ -579,7 +670,8 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
     }
   }
   /* --- タコ足の根（ガジュマル）: 根元から四方へうねりながら地表を這う --- */
-  if (g.rootLegs > 0) {
+  if (g.legs) branches.push(...makeLegs(g, rng));
+  if (g.rootLegs > 0 && !g.legs) {
     const nr = g.rootLegs;
     const a0 = rng.range(0, Math.PI * 2);
     for (let i = 0; i < nr; i++) {
@@ -637,7 +729,7 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
       dir: projectFan(dir, 0.6),
       depth: 0,
       t: t0 + i * 0.015,
-      length: rule.lenBase * g.height * rng.range(0.82, 1.15) * (i === 0 ? 1 : rng.range(0.75, 1)) * (g.fork ? 0.72 : 1),
+      length: rule.lenBase * g.height * rng.range(0.82, 1.15) * (i === 0 ? 1 : rng.range(0.75, 1)) * (g.fork ? 0.72 : 1) * (g.legs ? 0.75 : 1),
       parent: -1,
       parentNode: 0,
     });

@@ -55,7 +55,7 @@ async function boot() {
     const [sp, seed] = dbg.split(':');
     if (isSpeciesId(sp) && seed) {
       const specimen = createSpecimen(sp, Number(seed) >>> 0);
-      await app.go({ name: 'detail', specimen, deco: { ...DEFAULT_DECO, shape: SPECIES[sp].pot } });
+      await app.go({ name: 'detail', specimen, deco: { ...DEFAULT_DECO, shape: specimen.genes.legs ? 'round' : SPECIES[sp].pot } });
       return;
     }
   }

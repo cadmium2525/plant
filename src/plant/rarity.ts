@@ -57,6 +57,7 @@ const SPECIFIC: Record<SpeciesId, { id: string; label: string }[]> = {
     { id: 'octopus', label: 'タコ足' },
     { id: 'forest', label: '気根の森' },
     { id: 'mega', label: '人参ガジュマル' },
+    { id: 'legs', label: '足組み' },
   ],
   boojum: [
     { id: 'fork2', label: '二股' },
@@ -159,9 +160,10 @@ export function evaluateTraits(
       break;
     case 'gajumaru':
       if (g.heads >= 2) add('multi', '株立ち', 2);
-      if (g.rootLegs >= 9) add('octopus', 'タコ足', 3);
+      if (g.legs) add('legs', '足組み', 5);
+      else if (g.rootLegs >= 9) add('octopus', 'タコ足', 3);
       if (g.aerial >= 10) add('forest', '気根の森', 3);
-      if (g.caudex >= 1.35) add('mega', '人参ガジュマル', 3);
+      if (g.caudex >= 1.35 && !g.legs) add('mega', '人参ガジュマル', 3);
       break;
     case 'boojum':
       if (g.fork === 2) add('fork2', '二股', 2);

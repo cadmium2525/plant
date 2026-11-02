@@ -540,7 +540,10 @@ export class PlantModel extends THREE.Group {
     const base = hsl(def.caudexColor, this.specimen.genes.barkHue);
     const dark = base.clone().multiplyScalar(0.7);
     const tmp = new THREE.Color();
-    const rows = H + dome;
+    // 地面から浮いた塊根（足組みガジュマルの腰）は底も閉じる
+    const baseY = c.baseY ?? 0;
+    const bot = baseY > 0 ? 6 : 0;
+    const rows = bot + H + dome;
     const uRep = texKind === 'tortoise' ? 4 : texKind === 'smooth' ? 3 : 2;
     let arc = 0;
     let prevY = 0;
@@ -549,12 +552,17 @@ export class PlantModel extends THREE.Group {
       let h: number;
       let y: number;
       let rr: number;
-      if (i <= H) {
-        h = i / H;
+      if (i < bot) {
+        const d = Math.sin(((i / bot) * Math.PI) / 2);
+        h = 0;
+        y = -0.05 - (1 - d) * c.radius * 0.55;
+        rr = c.radius * caudexShape(c, 0) * d;
+      } else if (i - bot <= H) {
+        h = (i - bot) / H;
         y = -0.05 + h * (c.height + 0.05);
         rr = c.radius * caudexShape(c, h);
       } else {
-        const d = (i - H) / dome;
+        const d = (i - bot - H) / dome;
         h = 1;
         y = c.height + Math.sin((d * Math.PI) / 2) * c.radius * c.neck * 0.45;
         rr = c.radius * c.neck * Math.cos((d * Math.PI) / 2);
@@ -569,9 +577,9 @@ export class PlantModel extends THREE.Group {
       for (let j = 0; j <= A; j++) {
         const th = (j / A) * Math.PI * 2;
         const r = rr * caudexLobe(c, th, h);
-        pos.push(cx + Math.cos(th) * r, y, cz + Math.sin(th) * r);
+        pos.push(cx + Math.cos(th) * r, y + baseY, cz + Math.sin(th) * r);
         uv.push((j / A) * uRep, (arc / (2 * Math.PI * c.radius)) * uRep * (texKind === 'tortoise' ? 2 : 1));
-        tmp.copy(dark).lerp(base, smoothstep(-0.02, 0.18, y));
+        tmp.copy(dark).lerp(base, smoothstep(-0.02, 0.18, y + baseY));
         col.push(tmp.r, tmp.g, tmp.b);
       }
     }

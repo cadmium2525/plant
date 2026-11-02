@@ -17,7 +17,8 @@ export function defaultName(sp: Specimen): string {
   const rng = new Rng(sp.seed).fork(99);
   const ids = new Set(sp.traits.map((t) => t.id));
   let pre = rng.pick(PRE[sp.speciesId]);
-  if (ids.has('mega')) pre = 'でぶ';
+  if (ids.has('legs')) pre = 'すらり';
+  else if (ids.has('mega')) pre = 'でぶ';
   else if (ids.has('multi')) pre = sp.speciesId === 'adenium' || sp.speciesId === 'pachypodium' ? 'やまた' : 'なかよし';
   else if (ids.has('fan')) pre = 'おうぎ';
   else if (ids.has('vari')) pre = 'ゆき';

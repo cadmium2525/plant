@@ -3,6 +3,7 @@ import { h, sheet } from './dom';
 import { state } from '../game';
 import { Store, type SeedItem } from '../store';
 import { SPECIES } from '../plant/species';
+import { makeGenes } from '../plant/generate';
 import { RARITY_INFO } from '../plant/rarity';
 import { DEFAULT_DECO, POT_SHAPES, type PotDeco, type PotShape } from '../pot';
 
@@ -25,7 +26,9 @@ export function potIcon(shape: PotShape, color: string): HTMLElement {
 
 /** 種を植える: 鉢を選ぶシート */
 export function openPlantSheet(seed: SeedItem): void {
-  const deco: PotDeco = { ...DEFAULT_DECO, shape: SPECIES[seed.speciesId].pot };
+  // 足組みガジュマルは脚が見えるよう丸鉢で
+  const legs = seed.speciesId === 'gajumaru' && makeGenes(seed.speciesId, seed.seed).legs;
+  const deco: PotDeco = { ...DEFAULT_DECO, shape: legs ? 'round' : SPECIES[seed.speciesId].pot };
   const sp = SPECIES[seed.speciesId];
   const shapes = h('div', { class: 'pot-choices' });
   const colors = h('div', { class: 'swatches' });

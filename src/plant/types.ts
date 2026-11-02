@@ -34,6 +34,7 @@ export interface Genes {
   arch: boolean; // 先端が弓なりに垂れる（ブージャム）
   rootLegs: number; // 地表を這う太い根の本数（ガジュマル）
   aerial: number; // 枝から垂れる気根の本数（ガジュマル）
+  legs: boolean; // 根元が二本の脚になり足を組む（ガジュマルの希少変異）
   // 希少変異
   fasciation: boolean; // 扇状化風
   variegated: boolean; // 斑入り
@@ -95,6 +96,7 @@ export interface SkCaudex {
   wrinkle: number;
   shape?: 'bottle' | 'ball' | 'dome'; // 省略時は bottle
   tortoise?: number; // 亀甲模様の深さ（0: なし）
+  baseY?: number; // 地面から持ち上げる高さ（足組みガジュマルの腰）
 }
 
 export interface GrowthEvent {
