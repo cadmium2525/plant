@@ -25,7 +25,7 @@ export function potIcon(shape: PotShape, color: string): HTMLElement {
 
 /** 種を植える: 鉢を選ぶシート */
 export function openPlantSheet(seed: SeedItem): void {
-  const deco: PotDeco = { ...DEFAULT_DECO, shape: seed.speciesId === 'adenium' ? 'bowl' : 'round' };
+  const deco: PotDeco = { ...DEFAULT_DECO, shape: SPECIES[seed.speciesId].pot };
   const sp = SPECIES[seed.speciesId];
   const shapes = h('div', { class: 'pot-choices' });
   const colors = h('div', { class: 'swatches' });

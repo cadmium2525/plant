@@ -1,6 +1,6 @@
 export type V3 = [number, number, number];
 
-export type SpeciesId = 'adenium' | 'decaryia';
+export type SpeciesId = 'adenium' | 'decaryia' | 'pachypodium' | 'operculicarya' | 'dioscorea' | 'boojum';
 
 /** 個体の遺伝パラメータ（seed から決定的に導出） */
 export interface Genes {
@@ -25,6 +25,13 @@ export interface Genes {
   flowerPattern: 'plain' | 'edge' | 'stripe';
   spineDensity: number;
   barkHue: number;
+  // 追加種用（既存種では 0 / false）
+  knob: number; // 幹のゴツゴツ（オペルクリカリア）
+  helix: number; // つるの巻き（亀甲竜）
+  crack: number; // 亀甲の割れの深さ（亀甲竜）
+  caudexSpines: number; // 塊根のトゲ量（パキポディウム）
+  fork: number; // 先端の分かれ数（ブージャム: 0 なら一本）
+  arch: boolean; // 先端が弓なりに垂れる（ブージャム）
   // 希少変異
   fasciation: boolean; // 扇状化風
   variegated: boolean; // 斑入り
@@ -63,14 +70,16 @@ export interface SkFlower {
   t: number;
   dir: V3;
   size: number;
+  off?: number; // 花茎の長さ（先端からの距離）
 }
 
 export interface SkSpine {
-  b: number;
+  b: number; // -1 のときは塊根の表面（p を使う）
   n: number;
   t: number;
   dir: V3;
   len: number;
+  p?: V3; // 塊根トゲの位置（塊根の最終形での座標）
 }
 
 export interface SkCaudex {
@@ -82,6 +91,8 @@ export interface SkCaudex {
   leanX: number;
   leanZ: number;
   wrinkle: number;
+  shape?: 'bottle' | 'ball' | 'dome'; // 省略時は bottle
+  tortoise?: number; // 亀甲模様の深さ（0: なし）
 }
 
 export interface GrowthEvent {

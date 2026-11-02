@@ -600,7 +600,7 @@ h3 {
   margin: 8px 0 4px;
 }
 .sil-wrap {
-  background: repeating-linear-gradient(0deg, #f1f3ec 0 19px, #e4e9e0 19px 20px), #f1f3ec;
+  background: radial-gradient(circle at 50% 45%, #fbf8f0 0%, #ece6d8 100%);
   border-radius: 14px;
   margin-top: 10px;
 }

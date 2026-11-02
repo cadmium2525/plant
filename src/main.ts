@@ -13,6 +13,7 @@ import { zukanScreen } from './ui/zukan';
 import { settingsScreen } from './ui/settings';
 import { createSpecimen } from './plant/generate';
 import { DEFAULT_DECO } from './pot';
+import { SPECIES, isSpeciesId } from './plant/species';
 
 async function boot() {
   const root = document.getElementById('app')!;
@@ -52,9 +53,9 @@ async function boot() {
   const dbg = new URLSearchParams(location.search).get('debug');
   if (dbg) {
     const [sp, seed] = dbg.split(':');
-    if ((sp === 'adenium' || sp === 'decaryia') && seed) {
+    if (isSpeciesId(sp) && seed) {
       const specimen = createSpecimen(sp, Number(seed) >>> 0);
-      await app.go({ name: 'detail', specimen, deco: { ...DEFAULT_DECO, shape: sp === 'adenium' ? 'bowl' : 'round' } });
+      await app.go({ name: 'detail', specimen, deco: { ...DEFAULT_DECO, shape: SPECIES[sp].pot } });
       return;
     }
   }

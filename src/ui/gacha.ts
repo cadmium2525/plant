@@ -2,9 +2,9 @@ import { app, header, pointsBadge, tabBar, type Screen } from './app';
 import { h, toast } from './dom';
 import { canDraw, drawSeed, needsRescue, saveMeta, state } from '../game';
 import { GACHA_COST } from '../store';
-import { SPECIES } from '../plant/species';
+import { SPECIES, SPECIES_IDS } from '../plant/species';
 import { RARITY_INFO } from '../plant/rarity';
-import { drawSilhouette } from '../plant/silhouette';
+import { drawSeed as paintSeed } from '../plant/seeds';
 import { openPlantSheet } from './home';
 
 const HINTS: Record<string, string> = {
@@ -28,7 +28,7 @@ export function gachaScreen(): Screen {
         h('span', { class: 'packet-q' }, '?'),
         h('span', { class: 'packet-label' }, 'MYSTERY SEED'),
       ),
-      h('p', { class: 'muted center' }, `アデニウム／デカリアのどちらかの種が出ます。形は1粒ごとに違います。`),
+      h('p', { class: 'muted center' }, `${SPECIES_IDS.length}種類の奇妙な植物のどれかの種が出ます。育つ形は1粒ごとに違います。`),
     );
     const rescue = needsRescue();
     actions.replaceChildren(
@@ -44,7 +44,7 @@ export function gachaScreen(): Screen {
   const draw = async (free: boolean) => {
     if (!free) state.meta.points -= GACHA_COST;
     state.meta.stats.draws++;
-    const { item, specimen } = drawSeed();
+    const { item } = drawSeed();
     state.meta.inventory.push(item);
     await saveMeta();
     ptsSlot.replaceChildren(pointsBadge());
@@ -63,8 +63,8 @@ export function gachaScreen(): Screen {
     actions.replaceChildren();
     await new Promise((r) => setTimeout(r, reduce ? 150 : 1300));
 
-    const sil = h('canvas', { class: 'silhouette', width: 360, height: 360, 'aria-label': '樹形のシルエット' });
-    drawSilhouette(sil, specimen.skeleton, '#203029');
+    const sil = h('canvas', { class: 'silhouette', width: 360, height: 360, 'aria-label': `${sp.name}の種` });
+    paintSeed(sil, sp, item.seed, item.rarity);
     stageBox.replaceChildren(
       h(
         'div',

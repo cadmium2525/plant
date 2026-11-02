@@ -10,7 +10,6 @@ export function growScreen(r: Route): Screen {
   const specimen = createSpecimen(seed.speciesId, seed.seed);
   const def = SPECIES[seed.speciesId];
   const stage = app.stage;
-  const isAd = seed.speciesId === 'adenium';
 
   const view = h('div', { class: 'viewport grow-view' });
   const phase = h('div', { class: 'phase-label' }, '発芽');
@@ -38,12 +37,12 @@ export function growScreen(r: Route): Screen {
   const baseTarget = stage.controls.target.y;
 
   const phaseName = (x: number): string => {
-    const t0 = isAd ? 0.27 : 0.1;
+    const t0 = def.phase.t0;
     if (x < 0.06) return '発芽';
-    if (x < t0) return isAd ? '根元がふくらむ' : '根を張る';
-    if (x < 0.45) return '幹が伸びる';
+    if (x < t0) return def.phase.base;
+    if (x < 0.45) return def.id === 'dioscorea' ? 'つるが伸びる' : '幹が伸びる';
     if (x < 0.78) return '枝分かれ・展葉';
-    if (x < 1) return isAd ? '開花' : '樹形が締まる';
+    if (x < 1) return def.phase.last;
     return '成熟';
   };
 

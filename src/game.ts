@@ -20,21 +20,19 @@ export async function saveMeta(): Promise<void> {
   }
 }
 
-/** 抽選: 候補を複数作り、直近の個体と似ていないものを優先する */
+/**
+ * 抽選: 直近の個体とよく似ているときだけ引き直す（最大3回）。
+ * 「一番違うもの」を選ぶと珍しい形ばかり選ばれてレア率が上がるので、似すぎの回避だけにとどめる。
+ */
 export function drawSeed(): { item: SeedItem; specimen: Specimen } {
   const recent = state.meta.recentFeatures;
   let best: Specimen | null = null;
-  let bestScore = -1;
   for (let i = 0; i < 3; i++) {
     const sp = SPECIES_IDS[Math.floor(Math.random() * SPECIES_IDS.length)];
     const cand = createSpecimen(sp, randomSeed());
+    best = cand;
     const d = recent.length ? Math.min(...recent.map((f) => featureDistance(f, cand.features))) : 1;
-    // 最初の候補を基本としつつ、似すぎていたら差し替え
-    const score = i === 0 ? d + 0.25 : d;
-    if (score > bestScore) {
-      bestScore = score;
-      best = cand;
-    }
+    if (d > 0.35) break;
   }
   const specimen = best!;
   state.meta.recentFeatures = [specimen.features, ...recent].slice(0, 5);

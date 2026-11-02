@@ -82,7 +82,7 @@ export async function studioScreen(r: Route): Promise<Screen> {
   const doodle = document.createElement('canvas');
   doodle.width = TEX_W;
   doodle.height = TEX_H;
-  const dctx = doodle.getContext('2d')!;
+  const dctx = doodle.getContext('2d', { willReadFrequently: true })!;
   if (deco.doodle) {
     const img = await loadImage(deco.doodle).catch(() => null);
     if (img) dctx.drawImage(img, 0, 0);
