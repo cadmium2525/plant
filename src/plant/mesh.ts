@@ -395,6 +395,7 @@ export class PlantModel extends THREE.Group {
   private caudexMesh: THREE.Mesh | null = null;
   private leaves: THREE.InstancedMesh | null = null;
   private flowers: THREE.InstancedMesh | null = null;
+  private stalks: THREE.InstancedMesh | null = null; // 花茎
   private spines: THREE.InstancedMesh | null = null;
   private leafQuat: THREE.Quaternion[] = [];
   private flowerQuat: THREE.Quaternion[] = [];
@@ -516,6 +517,15 @@ export class PlantModel extends THREE.Group {
       this.flowers.frustumCulled = false;
       sk.flowers.forEach((f) => this.flowerQuat.push(basisQuat(f.dir, perpendicular(f.dir))));
       this.add(this.flowers);
+      // 花茎: 枝先から花までをつなぐ細い茎（花が浮いて見えないように）
+      if (sk.flowers.some((f) => f.off)) {
+        const cg = new THREE.CylinderGeometry(1, 1.3, 1, 6, 1, true);
+        cg.translate(0, 0.5, 0);
+        const cm = new THREE.MeshStandardMaterial({ color: hsl(def.barkYoung).lerp(new THREE.Color('#6f8f4a'), 0.5), roughness: 0.6 });
+        this.stalks = new THREE.InstancedMesh(cg, cm, sk.flowers.length);
+        this.stalks.frustumCulled = false;
+        this.add(this.stalks);
+      }
     }
 
     /* --- トゲ --- */
@@ -724,8 +734,16 @@ export class PlantModel extends THREE.Group {
       sk.flowers.forEach((f, i) => {
         const s = easeOutBack(clamp((t - f.t) / 0.06));
         const np = this.branchCaches[f.b].pos[f.n];
-        // 花茎があれば先端から少し離して咲かせる
-        const off = (f.off ?? 0) * Math.min(1, s);
+        // 花茎が先に伸びて、その先で花が開く
+        const grow = f.off ? easeOut((t - (f.t - 0.07)) / 0.07) : 0;
+        const off = (f.off ?? 0) * grow;
+        if (this.stalks) {
+          ps.set(np[0], np[1], np[2]);
+          const r = 0.0055 * Math.min(1, grow * 2);
+          sc.set(r, Math.max(1e-4, off), r);
+          m.compose(ps, this.flowerQuat[i], sc);
+          this.stalks.setMatrixAt(i, m);
+        }
         ps.set(np[0] + f.dir[0] * off, np[1] + f.dir[1] * off, np[2] + f.dir[2] * off);
         const sz = f.size * s;
         sc.set(sz, sz, sz);
@@ -733,6 +751,7 @@ export class PlantModel extends THREE.Group {
         this.flowers!.setMatrixAt(i, m);
       });
       this.flowers.instanceMatrix.needsUpdate = true;
+      if (this.stalks) this.stalks.instanceMatrix.needsUpdate = true;
     }
     if (this.spines) {
       sk.spines.forEach((sp, i) => {
