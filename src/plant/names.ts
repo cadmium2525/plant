@@ -7,6 +7,7 @@ const PRE: Record<SpeciesId, string[]> = {
   pachypodium: ['ぎん', 'たま', 'まり', 'とげ', 'まん', 'ころ', 'ぼん', 'きら'],
   operculicarya: ['ごつ', 'じい', 'ねじ', 'こぶ', 'もさ', 'しぶ', 'げん', 'わび'],
   dioscorea: ['かめ', 'こう', 'ひび', 'まき', 'つる', 'どん', 'ぼこ', 'がめ'],
+  gajumaru: ['ガジュ', 'キジ', 'タコ', 'ねっこ', 'もり', 'うね', 'しま', 'ふく'],
   boojum: ['にん', 'のっぽ', 'ぼう', 'すっ', 'ひょろ', 'つん', 'のび', 'もじゃ'],
 };
 const SUF = ['丸', '太郎', 'すけ', '姫', '坊', '吉', 'べえ', 'ちゃん', 'ノ森', '左衛門'];
@@ -26,5 +27,7 @@ export function defaultName(sp: Specimen): string {
   else if (ids.has('arch')) pre = 'おじぎ';
   else if (ids.has('gnarl')) pre = 'ごつごつ';
   else if (ids.has('deep')) pre = 'げんぶ';
+  else if (ids.has('octopus')) pre = 'タコ';
+  else if (ids.has('forest')) pre = 'もりもり';
   return pre + rng.pick(SUF);
 }

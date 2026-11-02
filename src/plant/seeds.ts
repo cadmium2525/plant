@@ -113,6 +113,21 @@ export function drawSeed(canvas: HTMLCanvasElement, def: SpeciesDef, seed: numbe
       body(30, 22);
       break;
     }
+    case 'fig': {
+      // イチジク状の小さな実（中に細かい種）
+      body(46, 40);
+      ctx.fillStyle = 'rgba(255,235,200,0.55)';
+      for (let i = 0; i < 18; i++) {
+        ctx.beginPath();
+        ctx.arc(rng.range(-28, 28), rng.range(-22, 22), 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = shade(base, 0.45);
+      ctx.beginPath();
+      ctx.arc(44, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     default: {
       // 小さな核果（デカリア・オペルクリカリア）
       body(38, 30);

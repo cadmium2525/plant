@@ -15,6 +15,7 @@ const REF: Record<SpeciesId, { caudex: number; tipsHigh: number; tipsLow: number
   pachypodium: { caudex: 0.24, tipsHigh: 20, tipsLow: 2, lanky: 99 },
   operculicarya: { caudex: 0.12, tipsHigh: 190, tipsLow: 40, lanky: 1.15 },
   dioscorea: { caudex: 0.36, tipsHigh: 99, tipsLow: 0, lanky: 99 },
+  gajumaru: { caudex: 0.17, tipsHigh: 70, tipsLow: 6, lanky: 99 },
   boojum: { caudex: 0.1, tipsHigh: 120, tipsLow: 30, lanky: 99 },
 };
 
@@ -51,6 +52,12 @@ const SPECIFIC: Record<SpeciesId, { id: string; label: string }[]> = {
     { id: 'vines', label: '多つる' },
     { id: 'longvine', label: 'つる長' },
   ],
+  gajumaru: [
+    { id: 'multi', label: '株立ち' },
+    { id: 'octopus', label: 'タコ足' },
+    { id: 'forest', label: '気根の森' },
+    { id: 'mega', label: '人参ガジュマル' },
+  ],
   boojum: [
     { id: 'fork2', label: '二股' },
     { id: 'fork3', label: '三股' },
@@ -77,6 +84,7 @@ const COMMON = [
 const EXCLUDE: Partial<Record<SpeciesId, string[]>> = {
   pachypodium: ['twist', 'dense'],
   operculicarya: ['twist', 'asym'],
+  gajumaru: ['twist', 'asym'],
   dioscorea: ['fan', 'twist', 'lean', 'asym', 'dense', 'minimal', 'lanky'],
   boojum: ['twist', 'asym', 'minimal'],
 };
@@ -148,6 +156,12 @@ export function evaluateTraits(
       if (g.caudex >= 1.35) add('mega', '大玉', 3);
       if (g.heads >= 2) add('vines', '多つる', g.heads >= 3 ? 3 : 2);
       if (g.height >= 1.3) add('longvine', 'つる長', 1);
+      break;
+    case 'gajumaru':
+      if (g.heads >= 2) add('multi', '株立ち', 2);
+      if (g.rootLegs >= 9) add('octopus', 'タコ足', 3);
+      if (g.aerial >= 10) add('forest', '気根の森', 3);
+      if (g.caudex >= 1.35) add('mega', '人参ガジュマル', 3);
       break;
     case 'boojum':
       if (g.fork === 2) add('fork2', '二股', 2);

@@ -3,7 +3,7 @@ import type { PotShape } from '../pot';
 
 export type BarkKind = 'smooth' | 'rough' | 'tortoise';
 export type LeafKind = 'obovate' | 'round' | 'lance' | 'heart';
-export type SeedKind = 'tuft2' | 'tuft1' | 'drupe' | 'wing';
+export type SeedKind = 'tuft2' | 'tuft1' | 'drupe' | 'wing' | 'fig';
 
 export interface SpeciesDef {
   id: SpeciesId;
@@ -120,6 +120,23 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     phase: { t0: 0.32, base: '亀甲が育つ', last: 'つるが巻く' },
     seed: { kind: 'wing', color: '#b59a6a', size: 0.9 },
   },
+  gajumaru: {
+    id: 'gajumaru',
+    name: 'ガジュマル',
+    latin: 'Ficus microcarpa',
+    family: 'クワ科',
+    desc: 'タコ足のようにうねって地表を這う太い根と、人参形にふくらむ根元。枝から気根を垂らす「多幸の木」。',
+    duration: 50,
+    barkOld: [0.07, 0.12, 0.36],
+    barkYoung: [0.14, 0.2, 0.42],
+    caudexColor: [0.07, 0.14, 0.37],
+    leafColor: [0.32, 0.6, 0.24],
+    packet: '#4f8a5b',
+    pot: 'bowl',
+    look: { bark: 'smooth', caudexTex: 'smooth', leaf: 'obovate', sides: 10, tipR: 0.01, smooth: [0, 0.7], uvScale: 1.5, barkRough: 0.55, leafRough: 0.22 },
+    phase: { t0: 0.22, base: '根が張り出す', last: '葉が茂る' },
+    seed: { kind: 'fig', color: '#7c5a8c', size: 0.8 },
+  },
   boojum: {
     id: 'boojum',
     name: 'ブージャム',
@@ -139,7 +156,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
   },
 };
 
-export const SPECIES_IDS: SpeciesId[] = ['adenium', 'decaryia', 'pachypodium', 'operculicarya', 'dioscorea', 'boojum'];
+export const SPECIES_IDS: SpeciesId[] = ['adenium', 'decaryia', 'pachypodium', 'operculicarya', 'dioscorea', 'boojum', 'gajumaru'];
 
 export function isSpeciesId(s: string): s is SpeciesId {
   return (SPECIES_IDS as string[]).includes(s);

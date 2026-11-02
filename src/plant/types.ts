@@ -1,6 +1,6 @@
 export type V3 = [number, number, number];
 
-export type SpeciesId = 'adenium' | 'decaryia' | 'pachypodium' | 'operculicarya' | 'dioscorea' | 'boojum';
+export type SpeciesId = 'adenium' | 'decaryia' | 'pachypodium' | 'operculicarya' | 'dioscorea' | 'boojum' | 'gajumaru';
 
 /** 個体の遺伝パラメータ（seed から決定的に導出） */
 export interface Genes {
@@ -32,6 +32,8 @@ export interface Genes {
   caudexSpines: number; // 塊根のトゲ量（パキポディウム）
   fork: number; // 先端の分かれ数（ブージャム: 0 なら一本）
   arch: boolean; // 先端が弓なりに垂れる（ブージャム）
+  rootLegs: number; // 地表を這う太い根の本数（ガジュマル）
+  aerial: number; // 枝から垂れる気根の本数（ガジュマル）
   // 希少変異
   fasciation: boolean; // 扇状化風
   variegated: boolean; // 斑入り

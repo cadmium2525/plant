@@ -30,7 +30,7 @@ const FLOWER_PALETTE: { h: number; s: number; l: number; w: number }[] = [
 ];
 
 /** 既存2種では使わない遺伝子（乱数を消費しないよう固定値） */
-const EXTRA_OFF = { knob: 0, helix: 0, crack: 0, caudexSpines: 0, fork: 0, arch: false };
+const EXTRA_OFF = { knob: 0, helix: 0, crack: 0, caudexSpines: 0, fork: 0, arch: false, rootLegs: 0, aerial: 0 };
 
 function weighted<T extends { w: number }>(rng: Rng, items: T[]): T {
   const total = items.reduce((s, i) => s + i.w, 0);
@@ -143,6 +143,8 @@ function makeNewGenes(
     caudexSpines: 0,
     fork: 0,
     arch: false,
+    rootLegs: 0,
+    aerial: 0,
     variegated,
     dwarf,
   };
@@ -169,6 +171,28 @@ function makeNewGenes(
         spineDensity: rng.range(0.3, 0.6),
         caudexSpines: rng.chance(0.1) ? rng.range(1.3, 1.6) : rng.range(0.5, 1),
         fasciation,
+      };
+    }
+    case 'gajumaru': {
+      const octopus = rng.chance(0.1);
+      const forest = rng.chance(0.08);
+      return {
+        ...base,
+        heads: rng.chance(0.15) ? rng.int(2, 3) : 1,
+        height: rng.range(0.85, 1.15) * (dwarf ? 0.65 : 1),
+        thickness: rng.range(0.85, 1.2),
+        caudex: rng.chance(0.08) ? rng.range(1.4, 1.65) : rng.range(0.8, 1.15),
+        curvature: rng.range(0.2, 0.4),
+        lean: rng.chance(0.12) ? rng.range(0.3, 0.5) : rng.range(0, 0.18),
+        branchProb: rng.range(0.6, 0.8),
+        branchAngle: rng.range(0.7, 1.0),
+        internode: 0.06,
+        twist: rng.range(0.05, 0.15),
+        leafDensity: rng.range(0.75, 1.1),
+        spineDensity: 0,
+        rootLegs: octopus ? rng.int(9, 12) : rng.int(4, 7),
+        aerial: forest ? rng.int(10, 16) : rng.int(0, 4),
+        fasciation: rare.fasciation,
       };
     }
     case 'operculicarya': {
@@ -260,7 +284,7 @@ interface SpeciesRule {
   burstProb: number; // 「急な分岐」イベントの確率
   margin: number; // 葉・花の分の余白
   fitCaudex: boolean; // 根元のふくらみを幹の太さに合わせる
-  leafMode: 'rosette' | 'pairs' | 'alternate' | 'clusters';
+  leafMode: 'rosette' | 'pairs' | 'alternate' | 'clusters' | 'crown';
   tipSplit?: number[]; // depth ごとの先端二股分岐の確率
   twigLen?: [number, number]; // 幹から出る小枝の長さ（固定）
   carrot?: number; // 逆ニンジン形の幹の根元半径
@@ -373,6 +397,27 @@ const RULES: Record<SpeciesId, SpeciesRule> = {
     fitCaudex: false,
     leafMode: 'alternate',
   },
+  gajumaru: {
+    pipeExp: 2.3,
+    maxDepth: 3,
+    maxBranches: 90,
+    upTend: [0.1, 0.05, 0.03, 0.02],
+    rTip: 0.009,
+    taper: 0.04,
+    trunkSwell: 0.4,
+    minBranchFrac: 0.3,
+    childLen: [0.55, 0.85],
+    floor: 0.15,
+    t0: 0.22,
+    tEnd: 0.76,
+    lenBase: 0.62,
+    speed: 1.7,
+    turnProb: 0.06,
+    burstProb: 0.2,
+    margin: 0.1,
+    fitCaudex: false,
+    leafMode: 'crown',
+  },
   boojum: {
     pipeExp: 2,
     maxDepth: 1,
@@ -463,6 +508,22 @@ function makeCaudex(speciesId: SpeciesId, g: Genes, rng: Rng, leanDir: V3): SkCa
       wrinkle: 0.01,
     };
   }
+  if (speciesId === 'gajumaru') {
+    // 人参形にふくらんだ根元（ゴツゴツしたこぶが多い）
+    const radius = 0.17 * g.caudex * Math.sqrt(g.thickness);
+    const height = radius * rng.range(1.1, 1.6) * (g.dwarf ? 0.8 : 1);
+    for (const lb of lobes) lb.amp *= 2.2;
+    return {
+      height,
+      radius,
+      neck: rng.range(0.5, 0.65) * (g.heads > 1 ? 1.2 : 1),
+      bulge: rng.range(0.1, 0.3),
+      lobes,
+      leanX: leanDir[0] * g.lean * height * 0.5,
+      leanZ: leanDir[2] * g.lean * height * 0.5,
+      wrinkle: rng.range(0.04, 0.07),
+    };
+  }
   // operculicarya / boojum: 幹の根元のふくらみ（あとで幹に合わせる）
   const radius = (speciesId === 'boojum' ? 0.1 : 0.12) * g.caudex * g.thickness;
   return {
@@ -513,6 +574,35 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
         // 鉢の内径（塊根の1.3倍以上）からはみ出さないように
         const hr = Math.hypot(p[0], p[2]);
         if (hr > cRadius * 1.15) p = [(p[0] * cRadius * 1.15) / hr, p[1], (p[2] * cRadius * 1.15) / hr];
+      }
+      branches.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true });
+    }
+  }
+  /* --- タコ足の根（ガジュマル）: 根元から四方へうねりながら地表を這う --- */
+  if (g.rootLegs > 0) {
+    const nr = g.rootLegs;
+    const a0 = rng.range(0, Math.PI * 2);
+    for (let i = 0; i < nr; i++) {
+      const a = a0 + (i / nr) * Math.PI * 2 + rng.range(-0.25, 0.25);
+      const out: V3 = [Math.cos(a), 0, Math.sin(a)];
+      const nodes = [];
+      const h0 = cHeight * rng.range(0.25, 0.6);
+      let p: V3 = [caudex.leanX * 0.3 + out[0] * cRadius * 0.55, h0, caudex.leanZ * 0.3 + out[2] * cRadius * 0.55];
+      let d: V3 = norm([out[0], -0.25, out[2]]);
+      const steps = rng.int(5, 8);
+      const r0 = cRadius * rng.range(0.2, 0.32);
+      const reach = cRadius * rng.range(1.5, 1.9);
+      for (let k = 0; k <= steps; k++) {
+        nodes.push({ p, t: 0.05 + k * 0.03 + i * 0.006, r: r0 * (1 - k / (steps + 2)) });
+        // 地表に沿ってうねる
+        d = norm(add(d, [rng.gauss() * 0.35, -0.12, rng.gauss() * 0.35]));
+        p = add(p, scale(d, cRadius * rng.range(0.25, 0.35)));
+        if (p[1] < 0.0) {
+          p[1] = rng.range(-0.02, 0.01);
+          d = norm([d[0], 0.15, d[2]]);
+        }
+        const hr = Math.hypot(p[0], p[2]);
+        if (hr > reach) p = [(p[0] * reach) / hr, p[1] - 0.03, (p[2] * reach) / hr];
       }
       branches.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true });
     }
@@ -851,6 +941,29 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
           spines.push({ b: bi, n: k, t: 0, dir, len: rng.range(0.025, 0.045) * g.thickness });
         }
       }
+    } else if (rule.leafMode === 'crown') {
+      // ガジュマル: 枝の外側半分に、つやのある楕円の葉がらせん状に茂る
+      if (b.depth === 0 && n > 3) return;
+      for (let k = Math.max(1, Math.floor(n * 0.35)); k < n; k++) {
+        const T = tangent(b, k);
+        const per = Math.round((k === n - 1 ? 3 : 1.6) * g.leafDensity + rng.range(-0.4, 0.6));
+        for (let j = 0; j < per; j++) {
+          phi += golden;
+          const out = rotate(perpendicular(T), T, phi);
+          const dir = norm(add(add(scale(out, 1), scale(T, 0.45)), [0, 0.25, 0]));
+          leaves.push({
+            b: bi,
+            n: k,
+            delay: rng.range(0.015, 0.05),
+            t: 0,
+            dir,
+            side: norm(cross(dir, out)),
+            size: 0.085 * g.leafSize * rng.range(0.8, 1.15),
+            variegated: g.variegated && rng.chance(0.7),
+            shed: 2,
+          });
+        }
+      }
     } else if (rule.leafMode === 'alternate') {
       // 亀甲竜: つるにハート形の葉が互生
       for (let k = 2; k < n; k++) {
@@ -902,6 +1015,30 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
   });
   for (const lf of leaves) lf.t = branches[lf.b].nodes[lf.n].t + lf.delay;
   for (const sp of spines) sp.t = branches[sp.b].nodes[sp.n].t + 0.01;
+
+  /* --- 気根（ガジュマル）: 枝から細い根が垂れ下がり、長いものは土に届く --- */
+  if (g.aerial > 0) {
+    const cands = branches
+      .map((b, bi) => ({ b, bi }))
+      .filter(({ b }) => !b.root && b.depth >= 1 && b.depth <= 2 && b.nodes.length > 2);
+    for (let i = 0; i < g.aerial && cands.length; i++) {
+      const { b } = cands[rng.int(0, cands.length - 1)];
+      const k = rng.int(1, Math.max(1, Math.floor(b.nodes.length * 0.6)));
+      const start = b.nodes[k].p;
+      if (start[1] < 0.25) continue;
+      const reachSoil = g.aerial >= 10 || rng.chance(0.35);
+      const len = reachSoil ? start[1] + 0.02 : start[1] * rng.range(0.25, 0.6);
+      const steps = Math.max(3, Math.round(len / 0.07));
+      const nodes = [];
+      let p: V3 = start;
+      const r0 = reachSoil ? rng.range(0.008, 0.016) : rng.range(0.004, 0.007);
+      for (let s2 = 0; s2 <= steps; s2++) {
+        nodes.push({ p, t: Math.min(0.96, b.nodes[k].t + 0.12 + s2 * 0.018), r: r0 * (1 - (s2 / steps) * 0.4) });
+        p = add(p, [rng.gauss() * 0.008, -len / steps, rng.gauss() * 0.008]);
+      }
+      branches.push({ nodes, depth: 1, parent: -1, parentNode: 0, root: true });
+    }
+  }
 
   // 塊根のトゲ（パキポディウム）: 塊根と一緒に育つ
   if (g.caudexSpines > 0) {

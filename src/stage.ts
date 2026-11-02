@@ -171,7 +171,10 @@ export class Stage {
     this.clear();
     const plant = new PlantModel(specimen, this.quality);
     plant.update(t);
-    const caudexR = specimen.skeleton.caudex?.radius ?? 0.1;
+    // 鉢は塊根と、地表を這う根の広がりの両方が収まる大きさに
+    let caudexR = specimen.skeleton.caudex?.radius ?? 0.1;
+    for (const b of specimen.skeleton.branches)
+      if (b.root && b.depth === 0) for (const nd of b.nodes) caudexR = Math.max(caudexR, Math.hypot(nd.p[0], nd.p[2]) / 1.2);
     const pot = new Pot(deco, caudexR);
     pot.onChange = () => this.invalidate();
     this.plant = plant;
