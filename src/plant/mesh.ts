@@ -357,13 +357,18 @@ function buildRings(b: SkBranch, smooth: [number, number], quality: 'low' | 'mid
     }
   }
   // 先端の丸いフタ（切り口が見えないように）
-  if (!b.root) {
+  if (!b.root || b.cap) {
     const last = rings[rings.length - 1];
     const prev = rings[rings.length - 2];
     const T = norm(sub3(last.p, prev.p));
     const r = last.r;
-    push(add3(last.p, T, r * 0.45), r * 0.72, last.t);
-    push(add3(last.p, T, r * 0.85), 0, last.t);
+    if (b.cap) {
+      // なめらかな半球（ヒップの丸み）
+      for (const a of [0.3, 0.55, 0.75, 0.9, 1]) push(add3(last.p, T, r * Math.sin((a * Math.PI) / 2) * 0.9), r * Math.cos((a * Math.PI) / 2), last.t);
+    } else {
+      push(add3(last.p, T, r * 0.45), r * 0.72, last.t);
+      push(add3(last.p, T, r * 0.85), 0, last.t);
+    }
   }
   // 断面の向き（回転を最小にする平行移動フレーム）
   let n = perpendicular(norm(sub3(rings[1].p, rings[0].p)));
@@ -465,8 +470,9 @@ export class PlantModel extends THREE.Group {
       vertexColors: true,
       map: barkTex,
       bumpMap: barkTex,
-      bumpScale: look.bark === 'rough' ? 1.2 : 0.5,
-      roughness: look.barkRough,
+      // 足組みガジュマルは肌のようになめらかに
+      bumpScale: specimen.genes.legs ? 0.12 : look.bark === 'rough' ? 1.2 : 0.5,
+      roughness: specimen.genes.legs ? 0.42 : look.barkRough,
       metalness: 0,
     });
     const bm = new THREE.Mesh(geo, barkMat);

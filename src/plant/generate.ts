@@ -512,19 +512,18 @@ function makeCaudex(speciesId: SpeciesId, g: Genes, rng: Rng, leanDir: V3): SkCa
     };
   }
   if (speciesId === 'gajumaru' && g.legs) {
-    // 足組み: 根元が持ち上がって「腰」になる（左右に張り出した二つのふくらみ）
-    const a = legYaw(g);
+    // 足組み: ヒップは二本の太ももの付け根を重ねて作るので、塊根は腰の中に隠れる小さな芯だけ
     const L = legLength(g);
     return {
-      height: 0.17 * g.thickness,
-      radius: 0.078 * g.thickness,
-      neck: 0.82,
-      bulge: 0.04,
-      lobes: [{ k: 2, amp: 0.24, phase: Math.PI / 2 - 2 * a }],
+      height: 0.04,
+      radius: 0.03,
+      neck: 0.9,
+      bulge: 0,
+      lobes: [],
       leanX: 0,
       leanZ: 0,
-      wrinkle: 0.02,
-      baseY: L,
+      wrinkle: 0,
+      baseY: L - 0.02,
     };
   }
   if (speciesId === 'gajumaru') {
@@ -562,19 +561,20 @@ function legYaw(g: Genes): number {
   return (g.leanAngle % 1.2) - 0.6;
 }
 function legLength(g: Genes): number {
-  return 0.62 * g.height;
+  return 0.7 * g.height;
 }
 
 /** 脚の太さ（u: 0=腰, 1=つま先） 太もも→ひざ→ふくらはぎ→足首→足 */
 function legRadius(u: number): number {
   const keys: [number, number][] = [
-    [0, 0.066],
-    [0.3, 0.053],
-    [0.5, 0.035],
-    [0.64, 0.042],
-    [0.86, 0.019],
-    [0.94, 0.023],
-    [1, 0.012],
+    [0, 0.07], // ヒップ
+    [0.1, 0.071],
+    [0.3, 0.051], // 太もも
+    [0.48, 0.031], // ひざ
+    [0.6, 0.037], // ふくらはぎ
+    [0.8, 0.018], // 足首
+    [0.9, 0.016],
+    [1, 0.006], // つま先
   ];
   for (let i = 1; i < keys.length; i++)
     if (u <= keys[i][0]) {
@@ -596,8 +596,9 @@ function makeLegs(g: Genes, rng: Rng): SkBranch[] {
   const az: V3 = [-Math.sin(a), 0, Math.cos(a)];
   const W = (x: number, y: number, z: number): V3 => add(scale(ax, x * s * k), add([0, y, 0], scale(az, z * k)));
   // 腰 → 太もも → ひざ → すね → 足首 → つま先（ひざ同士が前後にずれて交差する）
-  const crossing: V3[] = [W(-0.05, L, 0), W(-0.03, L * 0.78, 0.04), W(0.03, L * 0.5, 0.078), W(0.06, L * 0.27, 0.062), W(0.08, 0.05, 0.04), W(0.115, -0.02, 0.1)];
-  const standing: V3[] = [W(0.05, L, -0.01), W(0.045, L * 0.75, -0.012), W(0.0, L * 0.5, -0.022), W(-0.03, L * 0.27, -0.012), W(-0.06, 0.05, 0), W(-0.085, -0.02, 0.07)];
+  // 付け根は中央で重ねてヒップの丸みに。足先はつま先立ちのように下へとがらせる
+  const crossing: V3[] = [W(-0.035, L + 0.01, 0.005), W(-0.02, L * 0.8, 0.045), W(0.03, L * 0.52, 0.075), W(0.06, L * 0.28, 0.06), W(0.08, 0.075, 0.035), W(0.1, -0.02, 0.075)];
+  const standing: V3[] = [W(0.035, L + 0.01, -0.012), W(0.035, L * 0.78, -0.014), W(0, L * 0.52, -0.022), W(-0.03, L * 0.28, -0.014), W(-0.058, 0.075, -0.002), W(-0.076, -0.02, 0.055)];
   const thick = g.thickness * Math.sqrt(k);
   const out: SkBranch[] = [];
   for (const pts of [standing, crossing]) {
@@ -624,7 +625,7 @@ function makeLegs(g: Genes, rng: Rng): SkBranch[] {
             (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * lf * lf * lf);
       nodes.push({ p, t: 0.03 + (1 - u) * 0.16, r: legRadius(u) * thick });
     }
-    out.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true });
+    out.push({ nodes, depth: 0, parent: -1, parentNode: 0, root: true, cap: true });
   }
   return out;
 }
@@ -756,7 +757,8 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
     let traveled = 0;
     const up0 = rule.upTend[pb.depth] ?? 0.03;
     for (let i = 1; i <= n; i++) {
-      const c = g.curvature * (pb.depth === 0 ? 0.7 : 1);
+      // 足組みの胴はまっすぐ気味に
+      const c = g.curvature * (pb.depth === 0 ? (g.legs ? 0.2 : 0.7) : 1);
       // ブージャムの弓なり: 先端側で下向きに垂れる
       const up = g.arch && pb.depth === 0 && i / n > 0.55 ? -0.12 : up0;
       if (g.helix) mainDir = rotate(mainDir, UP, g.helix);
@@ -919,9 +921,24 @@ export function generateSkeleton(speciesId: SpeciesId, seed: number, g: Genes): 
   }
 
   // 塊根の上から出る幹は、塊根の首より太くしない（太すぎると曲がり目で筒が潰れて板状に見える）
-  if (!rule.fitCaudex && caudex.shape !== 'dome') {
+  if (!rule.fitCaudex && caudex.shape !== 'dome' && !caudex.baseY) {
     const cap = Math.max(cRadius * caudex.neck * 1.1, rule.rTip * 2.2);
     for (const b of branches) if (!b.root) for (const nd of b.nodes) nd.r = Math.min(nd.r, cap);
+  }
+  // 足組み: 腰からいったん細く絞って（くびれ）、胸元で少しふくらむ胴
+  if (g.legs) {
+    const ss = (x: number) => x * x * (3 - 2 * x);
+    for (const b of branches) {
+      if (b.root || b.depth !== 0 || b.parent >= 0) continue;
+      const n = b.nodes.length;
+      b.nodes.forEach((nd, k) => {
+        const f = k / Math.max(1, n - 1);
+        const th = g.thickness;
+        if (f <= 0.3) nd.r = (0.066 + (0.038 - 0.066) * ss(f / 0.3)) * th;
+        else if (f <= 0.58) nd.r = (0.038 + (0.047 - 0.038) * ss((f - 0.3) / 0.28)) * th;
+        else nd.r = Math.min(nd.r, 0.047 * th);
+      });
+    }
   }
 
   // 根元のふくらみを幹の太さに合わせる

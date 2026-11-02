@@ -53,6 +53,7 @@ export interface SkBranch {
   parent: number; // 親ブランチ index（-1: 根元）
   parentNode: number;
   root?: boolean; // 露出根
+  cap?: boolean; // 根でも先端を丸く閉じる（足組みガジュマルの脚の付け根）
 }
 
 export interface SkLeaf {
